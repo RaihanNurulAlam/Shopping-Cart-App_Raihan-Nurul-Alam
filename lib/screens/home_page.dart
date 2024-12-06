@@ -1,10 +1,9 @@
-// ignore_for_file: avoid_print, library_private_types_in_public_api
-
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/product.dart';
 import '../widgets/product_card.dart';
 import '../widgets/cart_icon.dart';
+import 'product_detail_page.dart';
 
 class HomePage extends StatefulWidget {
   final String username;
@@ -16,9 +15,11 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<Product> products = [];
-  List<Product> favoriteProducts = [];
-  int cartCount = 0;
+  List<Product> allProducts = []; // Semua produk dari API
+  List<Product> products = []; // Produk yang ditampilkan (hasil filter)
+  List<String> categories = ['All']; // Daftar kategori, dimulai dengan 'All'
+  String selectedCategory = 'All'; // Kategori terpilih
+  final Map<Product, int> cartItems = {}; // Keranjang
 
   @override
   void initState() {
@@ -29,22 +30,48 @@ class _HomePageState extends State<HomePage> {
   void fetchProducts() async {
     try {
       final fetchedProducts = await ApiService.fetchProducts();
+
+      // Mengambil daftar kategori unik
+      final uniqueCategories =
+          fetchedProducts.map((product) => product.category).toSet().toList();
+
       setState(() {
-        products = fetchedProducts;
+        allProducts = fetchedProducts;
+        products = allProducts; // Awalnya tampilkan semua produk
+        categories.addAll(uniqueCategories); // Tambahkan kategori ke dropdown
       });
+
+      print('Produk berhasil dimuat: $allProducts');
+      print('Kategori: $categories');
     } catch (e) {
-      print("Failed to load products: $e");
+      print("Gagal memuat produk: $e");
     }
   }
 
-  void toggleFavorite(Product product) {
+  void filterProducts(String category) {
     setState(() {
-      if (favoriteProducts.contains(product)) {
-        favoriteProducts.remove(product);
+      selectedCategory = category;
+      if (category == 'All') {
+        products = allProducts; // Tampilkan semua produk
       } else {
-        favoriteProducts.add(product);
+        products = allProducts
+            .where((product) => product.category == category)
+            .toList();
       }
     });
+
+    print('Produk setelah filter: $products');
+  }
+
+  void searchProducts(String query) {
+    setState(() {
+      products = allProducts
+          .where((product) =>
+              product.title.toLowerCase().contains(query.toLowerCase()))
+          .toList();
+    });
+
+    print('Produk setelah pencarian: $products');
   }
 
   @override
@@ -55,31 +82,77 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Column(
         children: [
-          Expanded(
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 2 / 3,
-              ),
-              itemCount: products.length,
-              itemBuilder: (context, index) {
-                final product = products[index];
-                return ProductCard(
-                  product: product,
-                  onTap: () {
-                    Navigator.pushNamed(context, '/productDetail',
-                        arguments: product);
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                TextField(
+                  onChanged: searchProducts,
+                  decoration: InputDecoration(
+                    labelText: 'Search Product',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 16),
+                DropdownButton<String>(
+                  value: selectedCategory,
+                  items: categories.map((String category) {
+                    return DropdownMenuItem<String>(
+                      value: category,
+                      child: Text(category),
+                    );
+                  }).toList(),
+                  onChanged: (newCategory) {
+                    if (newCategory != null) {
+                      filterProducts(newCategory);
+                    }
                   },
-                );
-              },
+                ),
+              ],
             ),
+          ),
+          Expanded(
+            child: products.isNotEmpty
+                ? GridView.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: 2 / 3,
+                    ),
+                    itemCount: products.length,
+                    itemBuilder: (context, index) {
+                      final product = products[index];
+                      return ProductCard(
+                        product: product,
+                        onTap: () async {
+                          final updatedProduct = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ProductDetailPage(),
+                              settings: RouteSettings(arguments: product),
+                            ),
+                          );
+                          if (updatedProduct != null) {
+                            setState(() {
+                              cartItems[updatedProduct] =
+                                  (cartItems[updatedProduct] ?? 0) + 1;
+                            });
+                          }
+                        },
+                      );
+                    },
+                  )
+                : Center(
+                    child: Text('No products available'),
+                  ),
           ),
         ],
       ),
       floatingActionButton: CartIcon(
-        itemCount: cartCount,
+        itemCount: cartItems.values.fold(0, (sum, quantity) => sum + quantity),
         onTap: () {
-          Navigator.pushNamed(context, '/shoppingCart');
+          Navigator.pushNamed(context, '/shoppingCart', arguments: cartItems);
         },
       ),
     );

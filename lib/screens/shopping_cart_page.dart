@@ -1,164 +1,136 @@
-// ignore_for_file: prefer_const_constructors, library_private_types_in_public_api
+// ignore_for_file: use_key_in_widget_constructors, library_private_types_in_public_api, prefer_const_constructors, unused_local_variable, no_leading_underscores_for_local_identifiers
 
+import 'package:ecommerce_app/provider/cart_model.dart';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:provider/provider.dart';
 
 class ShoppingCartPage extends StatefulWidget {
-  const ShoppingCartPage({super.key});
-
   @override
-  _ShoppingCartPageState createState() => _ShoppingCartPageState();
+  State<ShoppingCartPage> createState() => _ShoppingCartPageState();
 }
 
 class _ShoppingCartPageState extends State<ShoppingCartPage> {
-  // Sample data
-  List<Map<String, dynamic>> cartItems = [
-    {'name': 'Product A', 'price': 10.0, 'quantity': 1},
-    {'name': 'Product B', 'price': 15.0, 'quantity': 2},
-  ];
-
-  double get totalOrder {
-    return cartItems.fold(
-        0, (sum, item) => sum + (item['price'] * item['quantity']));
-  }
-
-  final double serviceFee = 2.0;
-
-  double get totalPayment {
-    return totalOrder + serviceFee;
-  }
-
-  void updateQuantity(int index, int newQuantity) {
-    setState(() {
-      cartItems[index]['quantity'] = newQuantity;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    final cart = Provider.of<CartModel>(context);
+    final items = cart.items;
+
+    double calculateTotalOrder() {
+      return items.entries
+          .fold(0, (total, item) => total + item.key.price * item.value);
+    }
+
+    double serviceFee = 2.0;
+    LatLng deliveryLocation = LatLng(0, 0);
+    String locationNotes = '';
+
+    void _handleLocationResult(dynamic result) {
+      setState(() {
+        //This setState is now correctly placed within a StatefulWidget
+        deliveryLocation = result['location'];
+        locationNotes = result['notes'];
+      });
+    }
+
+    double totalOrder = calculateTotalOrder();
+    double totalPayment = totalOrder + serviceFee;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Shopping Cart'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.pop(context); // Back to Home Page
-          },
-        ),
+        title: Text('Shopping Cart'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Your Shopping Cart',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: cartItems.length,
-                itemBuilder: (context, index) {
-                  final item = cartItems[index];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    child: ListTile(
-                      title: Text(item['name']),
-                      subtitle: Text(
-                          'Price: \$${item['price']} | Total: \$${(item['price'] * item['quantity']).toStringAsFixed(2)}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove),
-                            onPressed: () {
-                              if (item['quantity'] > 1) {
-                                updateQuantity(index, item['quantity'] - 1);
-                              }
-                            },
-                          ),
-                          Text(item['quantity'].toString()),
-                          IconButton(
-                            icon: const Icon(Icons.add),
-                            onPressed: () {
-                              updateQuantity(index, item['quantity'] + 1);
-                            },
-                          ),
-                        ],
+      body: items.isEmpty
+          ? Center(
+              child: Text('Your shopping cart is empty!'),
+            )
+          : Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final product = items.keys.elementAt(index);
+                      final quantity = items[product]!;
+                      return ListTile(
+                        leading: Image.network(
+                          product.image,
+                          width: 50,
+                          height: 50,
+                        ),
+                        title: Text(product.title),
+                        subtitle: Text(
+                          'Price: \$${product.price} x $quantity = \$${(product.price * quantity).toStringAsFixed(2)}',
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.remove),
+                              onPressed: () {
+                                cart.addToCart(product, -1);
+                              },
+                            ),
+                            Text('$quantity'),
+                            IconButton(
+                              icon: Icon(Icons.add),
+                              onPressed: () {
+                                cart.addToCart(product, 1);
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Divider(),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Order Summary',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      SizedBox(height: 8),
+                      Text('Total Order: \$${totalOrder.toStringAsFixed(2)}'),
+                      Text('Service Fee: \$${serviceFee.toStringAsFixed(2)}'),
+                      SizedBox(height: 8),
+                      Text(
+                          'Total Payment: \$${totalPayment.toStringAsFixed(2)}',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                      SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final result = await Navigator.pushNamed(
+                              context, '/location',
+                              arguments: _handleLocationResult);
+                          if (result != null) {}
+                        },
+                        child: Text('Set Delivery Location'),
                       ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Order Summary',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Total Order:'),
-                Text('\$${totalOrder.toStringAsFixed(2)}'),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Service Fee:'),
-                Text('\$${serviceFee.toStringAsFixed(2)}'),
-              ],
-            ),
-            Divider(thickness: 1, color: Colors.grey[400]),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Total Payment:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  '\$${totalPayment.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/confirmation',
+                              arguments: {
+                                'totalPayment': totalPayment,
+                                'cartItems': items,
+                              });
+                        },
+                        child: Text('Proceed to Payment'),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Center(
-              child: ElevatedButton(
-                onPressed: () {
-                  // Navigate to Confirmation Page
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => ConfirmationPage()),
-                  );
-                },
-                child: const Text('Payment'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class ConfirmationPage extends StatelessWidget {
-  const ConfirmationPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Confirmation'),
-      ),
-      body: const Center(
-        child: Text(
-          'Your order has been confirmed!',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.pop(context);
+        },
+        child: Icon(Icons.arrow_back),
       ),
     );
   }

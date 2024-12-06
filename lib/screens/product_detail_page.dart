@@ -1,7 +1,10 @@
-// ignore_for_file: library_private_types_in_public_api
+// ignore_for_file: library_private_types_in_public_api, unnecessary_brace_in_string_interps
 
+import 'package:ecommerce_app/provider/cart_model.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/product.dart';
+// Pastikan Anda memiliki CartModel
 
 class ProductDetailPage extends StatefulWidget {
   const ProductDetailPage({super.key});
@@ -13,7 +16,6 @@ class ProductDetailPage extends StatefulWidget {
 class _ProductDetailPageState extends State<ProductDetailPage> {
   int quantity = 1;
   bool isFavorite = false;
-  int cartItemCount = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -98,12 +100,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   const Spacer(),
                   ElevatedButton(
                     onPressed: () {
-                      setState(() {
-                        cartItemCount += quantity;
-                      });
+                      Provider.of<CartModel>(context, listen: false)
+                          .addToCart(product, quantity);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('${product.title} added to cart'),
+                          content: Text(
+                              '${quantity} x ${product.title} added to cart'),
                         ),
                       );
                     },
@@ -122,37 +124,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             bottom: 0,
             child: FloatingActionButton(
               onPressed: () {
-                // Navigate to Shopping Cart Page
                 Navigator.pushNamed(context, '/shoppingCart');
               },
-              child: Stack(
-                children: [
-                  const Icon(Icons.shopping_cart),
-                  if (cartItemCount > 0)
-                    Positioned(
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          '$cartItemCount',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              child: const Icon(Icons.shopping_cart),
             ),
           ),
           Positioned(
